@@ -70,10 +70,11 @@ st.title("🚀 JobSync")
 
 for job in jobs_page:
     st.markdown(f"""
-    ### {job['title']}
-    **{job['company']}** | {job['location']}  
-    [Apply Here]({job['link']})
-    """)
+### {job['title']}
+**{job['company']}** | {job['location']}  
+📌 Source: {job['source']}  
+[Apply Here]({job['link']})
+""")
     
     # Skill Match
     if skills:
