@@ -1,16 +1,18 @@
 import streamlit as st
 import pandas as pd
+
 from scraper import get_jobs
-from utils import *
+from utils import remove_duplicates, filter_jobs, sort_jobs, calculate_match
 from auth import signup, login
-from bookmark_utils import *
-from application_utils import *
+from bookmark_utils import save_bookmark, load_user_bookmarks
+from application_utils import track_application, get_user_applications
 
 st.set_page_config(page_title="JobSync", layout="wide")
 
 # ---------------- SESSION ----------------
 if "user" not in st.session_state:
     st.session_state.user = None
+
 if "page" not in st.session_state:
     st.session_state.page = 1
 
@@ -19,6 +21,7 @@ st.sidebar.title("🔐 Account")
 
 if st.session_state.user is None:
     mode = st.sidebar.radio("Choose", ["Login", "Signup"])
+
     username = st.sidebar.text_input("Username")
     show = st.sidebar.checkbox("Show Password")
     password = st.sidebar.text_input("Password", type="default" if show else "password")
@@ -35,6 +38,7 @@ if st.session_state.user is None:
                 st.rerun()
             else:
                 st.sidebar.error("Invalid credentials")
+
 else:
     st.sidebar.write(f"👤 {st.session_state.user}")
     if st.sidebar.button("Logout"):
@@ -43,6 +47,7 @@ else:
 
 # ---------------- FILTERS ----------------
 st.sidebar.title("🔍 Filters")
+
 keyword = st.sidebar.text_input("Keyword")
 location = st.sidebar.selectbox("Location", ["All", "Remote", "India"])
 role = st.sidebar.selectbox("Role", ["All", "Intern", "Developer"])
@@ -65,17 +70,17 @@ start = (st.session_state.page - 1) * ITEMS
 end = start + ITEMS
 jobs_page = jobs[start:end]
 
-# ---------------- UI ----------------
 st.title("🚀 JobSync")
 
-for job in jobs_page:
+# ---------------- DISPLAY ----------------
+for i, job in enumerate(jobs_page):
     st.markdown(f"""
-### {job['title']}
-**{job['company']}** | {job['location']}  
-📌 Source: {job['source']}  
-[Apply Here]({job['link']})
-""")
-    
+    ### {job['title']}
+    **{job['company']}** | {job['location']}  
+    📌 Source: {job.get('source','Unknown')}  
+    [Apply Here]({job['link']})
+    """)
+
     # Skill Match
     if skills:
         score = calculate_match(skills, job["title"])
@@ -84,13 +89,19 @@ for job in jobs_page:
 
     col1, col2 = st.columns(2)
 
-    if col1.button("Apply", key="a_" + job["link"]):
+    # APPLY BUTTON (FIXED KEY)
+    if col1.button("🚀 Apply", key=f"apply_{i}_{job['title']}"):
         if st.session_state.user:
             track_application(st.session_state.user, job)
+            st.success("Application tracked!")
 
-    if col2.button("Save", key="s_" + job["link"]):
+    # SAVE BUTTON (FIXED KEY)
+    if col2.button("⭐ Save", key=f"save_{i}_{job['title']}"):
         if st.session_state.user:
             save_bookmark(st.session_state.user, job)
+            st.success("Saved!")
+
+    st.divider()
 
 # ---------------- PAGINATION ----------------
 col1, col2, col3 = st.columns(3)
@@ -110,8 +121,16 @@ if st.session_state.user:
     st.subheader("📊 Dashboard")
 
     apps = get_user_applications(st.session_state.user)
+    saved = load_user_bookmarks(st.session_state.user)
 
     if apps:
         df = pd.DataFrame(apps)
         st.metric("Applications", len(df))
-        st.line_chart(df["applied_on"].value_counts())
+
+        st.write("📈 Applications Over Time")
+        st.line_chart(df["applied_on"].value_counts().sort_index())
+
+        st.write("🏢 Top Companies")
+        st.bar_chart(df["company"].value_counts())
+
+    st.metric("⭐ Saved Jobs", len(saved))
